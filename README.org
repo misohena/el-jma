@@ -85,6 +85,8 @@
   0)
 #+end_src
 
+結果は次の通り。
+
 #+RESULTS[6bad4b2b91a72fed4bedc01e49951f7ce07db047]: example-get-tokyo-forecast-week-ts0
 #+begin_example
 ((timeDefines .
@@ -127,8 +129,6 @@
           (reliabilities .
                          ["" "" "B" "A" "A" "A" "A"]))]))
 #+end_example
-
-結果は次の通り。
 
 *** 長野県の特定の日の天気予報を取得し、文字列化し、バッファに挿入する
 
