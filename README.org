@@ -1,0 +1,248 @@
+#+TITLE: Emacsから気象庁のデータにアクセスする
+
+* jma-forecast.el
+
+このEmacs Lispは気象庁の天気予報データにアクセスする。
+
+** 天気予報のミニバッファ表示
+
+=M-x jma-forecast-show= を実行するとミニバッファに天気予報を表示する。
+
+[[file:screenshot/forecast-minibuffer.png]]
+
+事前に次の変数で予報する場所を設定しておく必要がある。
+- ~jma-forecast-location-office~
+- ~jma-forecast-location-class10~
+- ~jma-forecast-location-amedas~
+- ~jma-forecast-location-week-area~
+- ~jma-forecast-location-week-amedas~
+
+=M-x jma-forecast-location-setup= を実行すると入力補完付きでこれらの変数を設定できる。
+
+場所を指定するコードについては[[*エリアコード][エリアコード]]を参照すること。
+
+** Diary連携
+
+[[https://www.gnu.org/software/emacs/manual/html_node/emacs/Sexp-Diary-Entries.html][ダイアリーエントリー]]や[[https://orgmode.org/manual/Weekly_002fdaily-agenda.html#index-diary-integration][org-modeのagendaファイル]]に次の文を追加すると、現在の日付から向こう8日間に天気予報のエントリーが追加される。
+
+#+begin_src org
+%%(jma-diary-weathers "130000" "130010" "44132" "130010" "44132")
+#+end_src
+
+#+DOWNLOADED: screenshot @ 2022-02-23 19:31:18
+[[file:screenshot/forecast-diary.png]]
+
+引数の数字は予報する場所を指定するコードであり、上の例では次の意味を持つ。
+
+- 府県予報区: 東京都(130000)
+- 一次細分区域: 東京地方(130010)
+- アメダス観測所: 東京(44132)
+- 週間予報区域: 東京地方(130010)
+- アメダス観測所(週間): 東京(44132)
+
+場所を指定するコードについては[[*エリアコード][エリアコード]]を参照すること。
+
+また、これらのコードは =M-x jma-forecast-area-read= で調べることもできる。
+
+** Emacs Lispから使う
+*** 今日の東京の天気予報を取得する
+
+#+name: example-get-tokyo-forecast
+#+begin_src elisp :results pp :exports both :cache yes
+(require 'jma-forecast)
+
+(jma-forecast-weather-for-date
+  (jma-forecast-get "130000") ;;130000はoffice-code(府県予報区)
+  "130010" ;;class10-code (一次細分区域)
+  "44132"  ;;amedas-code (アメダス観測所番号)
+  "130010" ;;week-area-code (週間予報区域。府県予報区を少し細分化したもの)
+  "44132"  ;;week-amedas-code (週間予報でのアメダス観測所番号)
+  (jma-date-today)) ;; 日付はcalendarパッケージと同じ形式 (MM DD YYYY)
+#+end_src
+
+結果は次の通り。
+
+#+RESULTS[9e9214b59edeac33ead47fec4c242c26adc3cac4]: example-get-tokyo-forecast
+#+begin_example
+((report-type . "detailed")
+ (class10-area
+  (name . "東京地方")
+  (code . "130010"))
+ (weather . "くもり　夜のはじめ頃　晴れ")
+ (weather-code . "201")
+ (wind . "北の風　２３区西部　では　北の風　やや強く")
+ (wave . "０．５メートル　後　１メートル")
+ (pops "10")
+ (pop . "10"))
+#+end_example
+
+*** 東京都の週間天気予報の一つ目の時系列データを取得する
+
+#+name: example-get-tokyo-forecast-week-ts0
+#+begin_src elisp :results pp :exports both :cache yes
+(jma-forecast-report-time-series-at
+  (jma-forecast-week-report (jma-forecast-get "130000"))
+  0)
+#+end_src
+
+#+RESULTS[6bad4b2b91a72fed4bedc01e49951f7ce07db047]: example-get-tokyo-forecast-week-ts0
+#+begin_example
+((timeDefines .
+              ["2022-02-24T00:00:00+09:00" "2022-02-25T00:00:00+09:00" "2022-02-26T00:00:00+09:00" "2022-02-27T00:00:00+09:00" "2022-02-28T00:00:00+09:00" "2022-03-01T00:00:00+09:00" "2022-03-02T00:00:00+09:00"])
+ (areas .
+        [((area
+           (name . "東京地方")
+           (code . "130010"))
+          (weatherCodes .
+                        ["101" "101" "101" "201" "101" "201" "201"])
+          (pops .
+                ["" "10" "10" "30" "10" "30" "30"])
+          (reliabilities .
+                         ["" "" "A" "B" "A" "A" "A"]))
+         ((area
+           (name . "伊豆諸島北部")
+           (code . "130020"))
+          (weatherCodes .
+                        ["201" "101" "101" "200" "101" "200" "201"])
+          (pops .
+                ["" "20" "20" "40" "10" "40" "30"])
+          (reliabilities .
+                         ["" "" "A" "C" "A" "C" "A"]))
+         ((area
+           (name . "伊豆諸島南部")
+           (code . "130030"))
+          (weatherCodes .
+                        ["200" "101" "101" "202" "101" "200" "201"])
+          (pops .
+                ["" "20" "20" "50" "10" "40" "30"])
+          (reliabilities .
+                         ["" "" "A" "C" "A" "C" "B"]))
+         ((area
+           (name . "小笠原諸島")
+           (code . "130040"))
+          (weatherCodes .
+                        ["200" "200" "101" "201" "101" "101" "101"])
+          (pops .
+                ["" "40" "20" "30" "20" "20" "20"])
+          (reliabilities .
+                         ["" "" "B" "A" "A" "A" "A"]))]))
+#+end_example
+
+結果は次の通り。
+
+*** 長野県の特定の日の天気予報を取得し、文字列化し、バッファに挿入する
+
+#+name: example-get-nagano-forecast-insert
+#+begin_src elisp :results pp
+(let* ((forecast (jma-forecast-get "200000"))
+       (weather (jma-forecast-weather-for-date
+                 forecast
+                 "200020" ;;中部
+                 "48491" ;;諏訪
+                 '("200100" "200000") ;;中部・南部 または 長野県全域
+                 '("48361" "48156") ;;松本 または 長野
+                 (jma-date 2022 2 23))) ;;2022年2月23日
+       (weather-str (jma-weather-to-string weather)))
+  (when weather-str
+    (insert weather-str)))
+#+end_src
+
+
+#+DOWNLOADED: screenshot @ 2022-02-23 19:33:50
+[[file:screenshot/forecast-insert.png]]
+
+文字列のフォーマットは、 ~jma-weather-default-template~ 変数か ~jma-weather-to-string~ の引数で指定できる。
+
+** エリアコード
+
+天気予報を取得するには、予報する場所を番号(コード)で指定する必要がある。
+
+気象庁では様々な場所表すをコードが使用されているが、天気予報で使用するものは以下の通り。
+
+- office-code : 府県予報区コード (概ね都道府県)
+- class10-code : 一次細分区域コード (府県の中を大ざっぱに分割したもの)
+- amedas-code : アメダス観測所コード
+- week-area-code : 週間予報区域コード(府県予報区を少し細分化したもの)(※独自呼称)
+
+天気予報データは府県予報区(office)単位でダウンロードできる。
+
+天気予報(明後日までの詳細)は一次細分区域(class10)毎に行われている。
+(参考: https://www.jma.go.jp/jma/kishou/know/saibun/)
+
+気温や降水量に関する情報はアメダス観測所(amedas)毎に発表されている。
+(参考: https://www.jma.go.jp/jma/kishou/know/amedas/kaisetsu.html)
+
+週間天気予報は原則として府県予報区毎に行われているが、地形や季節等の都合で多少の細分化が行われている(参考: https://www.jma.go.jp/jma/kishou/know/kurashi/shukan.html)。ここでは細分化後の区域を週間予報区域(week-area)と呼ぶことにする。
+
+例(2022-02-23現在):
+
+- 長野県(office=200000)
+  - 詳細予報
+    - 一次細分区域(class10)
+      - 200010 北部
+      - 200020 中部
+      - 200030 南部
+    - アメダス観測所(amedas)
+      - 48156 長野 (北部)
+      - 48361 松本 (中部)
+      - 48491 諏訪 (中部)
+      - 48767 飯田 (南部)
+      - 48331 軽井沢 (中部)
+  - 週間予報
+    - 週間予報区域(week-area) (※季節によっては分割されないことに注意)
+      - 200010 北部
+      - 200100 中部・南部
+    - アメダス観測所(amedas)
+      - 48156 長野 (北部)
+      - 48361 松本 (中部・南部)
+
+実際に長野県の予報がどのように構成されているかは次のURLから確認できる。
+
+- 人間閲覧用URL: https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=200000
+- JSON URL: https://www.jma.go.jp/bosai/forecast/data/forecast/200000.json
+
+各エリア間の対応関係は次のURLから得られる。
+- https://www.jma.go.jp/bosai/forecast/const/forecast_area.json (class10とamedasの対応関係)
+- https://www.jma.go.jp/bosai/forecast/const/week_area.json (week-areaとamedasの対応関係)
+- https://www.jma.go.jp/bosai/common/const/area.json (officeとclass10の対応関係)
+
+コードは =M-x jma-forecast-area-read= で調べることもできる。
+
+* jma-weather-code.el
+
+このEmacs Lispは天気コードに関する処理を提供する。
+
+** 天気コードの情報を取得する
+
+#+begin_src elisp :results pp :exports both :cache yes
+(list
+  (jma-weather-code-image-daytime 101)
+  (jma-weather-code-image-night 101)
+  (jma-weather-code-image 101 nil)
+  (jma-weather-code-text-ja 101)
+  (jma-weather-code-text-en 101))
+#+end_src
+
+#+RESULTS[928c82e78e9a1549177f163796049d380ddd8df3]:
+: ("101.svg" "501.svg" "101.svg" "晴時々曇" "PARTLY CLOUDY")
+
+** 天気コードの画像を取得する
+
+次のコードは天気コード101に対応する画像を表示するテキストプロパティが付加された文字列を返す。
+
+#+begin_src elisp :results pp :exports both :eval no-export
+(jma-weather-code-image-string 101)
+#+end_src
+
+#+RESULTS:
+: #("_" 0 1
+:   (display
+:    (image :type svg :file "~/.emacs.d/.jma-weather-cache/101.svg" :scale 1 :height 17 :ascent center)))
+
+テキスト端末の場合やSVGをサポートしていない場合はnilを返す。
+
+** 画像のダウンロードについて
+
+天気マークの画像は ~jma-weather-code-image-dir~ 変数で指定するディレクトリ(デフォルトは =~/.emacs.d/.jma-weather-cache=)に格納される。
+
+=M-x jma-weather-code-image-download-all= で全ての画像を一括でダウンロードできる。ファイルが存在しない場合は自動的にダウンロードするようになっているが、ダウンロード直後すぐに表示できないケースがあるようなので事前にこのコマンドでダウンロードすることを推奨する。
