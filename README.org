@@ -245,4 +245,4 @@
 
 天気マークの画像は ~jma-weather-code-image-dir~ 変数で指定するディレクトリ(デフォルトは =~/.emacs.d/.jma-weather-cache=)に格納される。
 
-=M-x jma-weather-code-image-download-all= で全ての画像を一括でダウンロードできる。ファイルが存在しない場合は自動的にダウンロードするようになっているが、ダウンロード直後すぐに表示できないケースがあるようなので事前にこのコマンドでダウンロードすることを推奨する。
+=M-x jma-weather-code-image-download-all= で全ての画像を一括でダウンロードできる。

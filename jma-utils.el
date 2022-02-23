@@ -197,7 +197,9 @@ TEMPLATEが文字列の場合、文字列中の展開指定を展開後文字列
     (let ((result "")
           (pos 0))
       (while (string-match "{{{\\([^:}]+\\)\\(?::\\([^}]+\\)\\)?}}}" template pos)
-        (let* ((pname (match-string 1 template))
+        (let* ((placeholder-beg (match-beginning 0))
+               (placeholder-end (match-end 0))
+               (pname (match-string 1 template))
                (fmt (match-string 2 template))
                ;; paramsのキーは文字列でもシンボルでもどちらでもOK
                (pvalue (cdr (or (assoc pname params)
@@ -215,9 +217,9 @@ TEMPLATEが文字列の場合、文字列中の展開指定を展開後文字列
           (setq result
                 (concat
                  result
-                 (substring template pos (match-beginning 0))
-                 fmted-pvalue)))
-        (setq pos (match-end 0)))
+                 (substring template pos placeholder-beg)
+                 fmted-pvalue))
+          (setq pos placeholder-end)))
       (setq result (concat result (substring template pos)))
       result))))
 
