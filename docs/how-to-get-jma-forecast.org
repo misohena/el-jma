@@ -1,0 +1,393 @@
+#+TITLE: 気象庁が提供する天気予報データの読み解き方
+#+DATE: [2022-02-21 Mon]
+#+AUTHOR: AKIYAMA Kouhei
+
+* 情報の取得先
+** URL一覧
+*** JSON
+| URL                                                                         | 格納されている情報                                                                                                                                                                                                                                                                                                                                    |
+|-----------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| =https://www.jma.go.jp/bosai/forecast/data/forecast/<office>.json=          | 天気予報                                                                                                                                                                                                                                                                                                                                              |
+| =https://www.jma.go.jp/bosai/forecast/data/overview_forecast/<office>.json= | 短期天気概況                                                                                                                                                                                                                                                                                                                                          |
+| =https://www.jma.go.jp/bosai/forecast/data/overview_week/<office>.json=     | 週間天気概況(複数のofficeをまとめた地方単位。例えば東北地方の概況は宮城県が代表して行う)                                                                                                                                                                                                                                                              |
+|-----------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| https://www.jma.go.jp/bosai/common/const/area.json                          | 各エリア階層(centers, offices, class10s, class15s, class20s)毎のID(コード), 名前, 気象台名, 親階層エリア, 子階層エリア                                                                                                                                                                                                                                |
+| https://www.jma.go.jp/bosai/forecast/const/forecast_area.json               | 天気予報で使用するエリア階層情報(office(一つ)に対応するclass10(一つ), class20(一つ), アメダス観測所(複数))                                                                                                                                                                                                                                            |
+| https://www.jma.go.jp/bosai/forecast/const/week_area.json                   | 週間天気予報で使用するエリア階層情報(office(一つ)に対応する週間天気予報エリア[fn::週間天気予報は天気予報とは異なるエリア単位で行われている。例えば福島県(office=070000)では、天気予報は中通り(070010)、浜通り(070020)、会津(070030)の三地域で行われているが、週間天気予報は中通り・浜通り(week=070100)、会津(week=070030)の二地域で行われる。](複数)) |
+| https://www.jma.go.jp/bosai/forecast/const/week_area05.json                 | 天気予報のエリアから週間天気予報エリアへの対応関係                                                                                                                                                                                                                                                                                                    |
+| https://www.jma.go.jp/bosai/forecast/const/week_area_name.json              | 週間天気予報エリアの名前                                                                                                                                                                                                                                                                                                                              |
+| https://www.jma.go.jp/bosai/forecast/const/en_amedas.json                   | 天気予報で使用するアメダス観測所(気温等の表示に使う)の英語名                                                                                                                                                                                                                                                                                          |
+|-----------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| https://www.jma.go.jp/bosai/forecast/const/anniversary.json                 | 祝日の日付                                                                                                                                                                                                                                                                                                                                            |
+|-----------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| https://www.jma.go.jp/bosai/common/const/class20relm.json                   |                                                                                                                                                                                                                                                                                                                                                       |
+| https://www.jma.go.jp/bosai/amedas/const/amedastable.json                   |                                                                                                                                                                                                                                                                                                                                                       |
+| https://www.jma.go.jp/bosai/amedas/const/amedas_class20_list.json           |                                                                                                                                                                                                                                                                                                                                                       |
+
+*** 画像
+| URL                                                          | 中身       |
+|--------------------------------------------------------------+------------|
+| =https://www.jma.go.jp/bosai/forecast/img/<weatherCode>.svg= | 天気マーク |
+
+** HTML埋め込み定数
+いくつかの定数はHTML(https://www.jma.go.jp/bosai/forecast/)内のSCRIPT要素に埋め込まれており、JavaScriptのオブジェクトとして参照できる。
+
+| プロパティ名                | 中身                             |
+|-----------------------------+----------------------------------|
+| ~Forecast.Const.AREA_FUKEN~ | 地方予報区代表情報               |
+| ~Forecast.Const.TELOPS~     | 天気コード                       |
+| ~Forecast.Const.WEEK_AREAS~ | 週間天気予報エリアのローマ字表記 |
+
+*** 天気コード(weatherCode)
+
+118種類が定義されている(2022-02-21現在)。
+
+#+begin_src js
+Forecast.Const.TELOPS = {
+//コード:[昼画像,夜画像,?,日本語,英語],
+100:["100.svg","500.svg","100","晴","CLEAR"],
+101:["101.svg","501.svg","100","晴時々曇","PARTLY CLOUDY"],
+102:["102.svg","502.svg","300","晴一時雨","CLEAR, OCCASIONAL SCATTERED SHOWERS"],
+103:["102.svg","502.svg","300","晴時々雨","CLEAR, FREQUENT SCATTERED SHOWERS"],
+104:["104.svg","504.svg","400","晴一時雪","CLEAR, SNOW FLURRIES"],
+105:["104.svg","504.svg","400","晴時々雪","CLEAR, FREQUENT SNOW FLURRIES"],
+106:["102.svg","502.svg","300","晴一時雨か雪","CLEAR, OCCASIONAL SCATTERED SHOWERS OR SNOW FLURRIES"],
+107:["102.svg","502.svg","300","晴時々雨か雪","CLEAR, FREQUENT SCATTERED SHOWERS OR SNOW FLURRIES"],
+108:["102.svg","502.svg","300","晴一時雨か雷雨","CLEAR, OCCASIONAL SCATTERED SHOWERS AND/OR THUNDER"],
+110:["110.svg","510.svg","100","晴後時々曇","CLEAR, PARTLY CLOUDY LATER"],
+111:["110.svg","510.svg","100","晴後曇","CLEAR, CLOUDY LATER"],
+112:["112.svg","512.svg","300","晴後一時雨","CLEAR, OCCASIONAL SCATTERED SHOWERS LATER"],
+113:["112.svg","512.svg","300","晴後時々雨","CLEAR, FREQUENT SCATTERED SHOWERS LATER"],
+114:["112.svg","512.svg","300","晴後雨","CLEAR,RAIN LATER"],
+115:["115.svg","515.svg","400","晴後一時雪","CLEAR, OCCASIONAL SNOW FLURRIES LATER"],
+116:["115.svg","515.svg","400","晴後時々雪","CLEAR, FREQUENT SNOW FLURRIES LATER"],
+117:["115.svg","515.svg","400","晴後雪","CLEAR,SNOW LATER"],
+118:["112.svg","512.svg","300","晴後雨か雪","CLEAR, RAIN OR SNOW LATER"],
+119:["112.svg","512.svg","300","晴後雨か雷雨","CLEAR, RAIN AND/OR THUNDER LATER"],
+120:["102.svg","502.svg","300","晴朝夕一時雨","OCCASIONAL SCATTERED SHOWERS IN THE MORNING AND EVENING, CLEAR DURING THE DAY"],
+121:["102.svg","502.svg","300","晴朝の内一時雨","OCCASIONAL SCATTERED SHOWERS IN THE MORNING, CLEAR DURING THE DAY"],
+122:["112.svg","512.svg","300","晴夕方一時雨","CLEAR, OCCASIONAL SCATTERED SHOWERS IN THE EVENING"],
+123:["100.svg","500.svg","100","晴山沿い雷雨","CLEAR IN THE PLAINS, RAIN AND THUNDER NEAR MOUTAINOUS AREAS"],
+124:["100.svg","500.svg","100","晴山沿い雪","CLEAR IN THE PLAINS, SNOW NEAR MOUTAINOUS AREAS"],
+125:["112.svg","512.svg","300","晴午後は雷雨","CLEAR, RAIN AND THUNDER IN THE AFTERNOON"],
+126:["112.svg","512.svg","300","晴昼頃から雨","CLEAR, RAIN IN THE AFTERNOON"],
+127:["112.svg","512.svg","300","晴夕方から雨","CLEAR, RAIN IN THE EVENING"],
+128:["112.svg","512.svg","300","晴夜は雨","CLEAR, RAIN IN THE NIGHT"],
+130:["100.svg","500.svg","100","朝の内霧後晴","FOG IN THE MORNING, CLEAR LATER"],
+131:["100.svg","500.svg","100","晴明け方霧","FOG AROUND DAWN, CLEAR LATER"],
+132:["101.svg","501.svg","100","晴朝夕曇","CLOUDY IN THE MORNING AND EVENING, CLEAR DURING THE DAY"],
+140:["102.svg","502.svg","300","晴時々雨で雷を伴う","CLEAR, FREQUENT SCATTERED SHOWERS AND THUNDER"],
+160:["104.svg","504.svg","400","晴一時雪か雨","CLEAR, SNOW FLURRIES OR OCCASIONAL SCATTERED SHOWERS"],
+170:["104.svg","504.svg","400","晴時々雪か雨","CLEAR, FREQUENT SNOW FLURRIES OR SCATTERED SHOWERS"],
+181:["115.svg","515.svg","400","晴後雪か雨","CLEAR, SNOW OR RAIN LATER"],
+200:["200.svg","200.svg","200","曇","CLOUDY"],
+201:["201.svg","601.svg","200","曇時々晴","MOSTLY CLOUDY"],
+202:["202.svg","202.svg","300","曇一時雨","CLOUDY, OCCASIONAL SCATTERED SHOWERS"],
+203:["202.svg","202.svg","300","曇時々雨","CLOUDY, FREQUENT SCATTERED SHOWERS"],
+204:["204.svg","204.svg","400","曇一時雪","CLOUDY, OCCASIONAL SNOW FLURRIES"],
+205:["204.svg","204.svg","400","曇時々雪","CLOUDY FREQUENT SNOW FLURRIES"],
+206:["202.svg","202.svg","300","曇一時雨か雪","CLOUDY, OCCASIONAL SCATTERED SHOWERS OR SNOW FLURRIES"],
+207:["202.svg","202.svg","300","曇時々雨か雪","CLOUDY, FREQUENT SCCATERED SHOWERS OR SNOW FLURRIES"],
+208:["202.svg","202.svg","300","曇一時雨か雷雨","CLOUDY, OCCASIONAL SCATTERED SHOWERS AND/OR THUNDER"],
+209:["200.svg","200.svg","200","霧","FOG"],
+210:["210.svg","610.svg","200","曇後時々晴","CLOUDY, PARTLY CLOUDY LATER"],
+211:["210.svg","610.svg","200","曇後晴","CLOUDY, CLEAR LATER"],
+212:["212.svg","212.svg","300","曇後一時雨","CLOUDY, OCCASIONAL SCATTERED SHOWERS LATER"],
+213:["212.svg","212.svg","300","曇後時々雨","CLOUDY, FREQUENT SCATTERED SHOWERS LATER"],
+214:["212.svg","212.svg","300","曇後雨","CLOUDY, RAIN LATER"],
+215:["215.svg","215.svg","400","曇後一時雪","CLOUDY, SNOW FLURRIES LATER"],
+216:["215.svg","215.svg","400","曇後時々雪","CLOUDY, FREQUENT SNOW FLURRIES LATER"],
+217:["215.svg","215.svg","400","曇後雪","CLOUDY, SNOW LATER"],
+218:["212.svg","212.svg","300","曇後雨か雪","CLOUDY, RAIN OR SNOW LATER"],
+219:["212.svg","212.svg","300","曇後雨か雷雨","CLOUDY, RAIN AND/OR THUNDER LATER"],
+220:["202.svg","202.svg","300","曇朝夕一時雨","OCCASIONAL SCCATERED SHOWERS IN THE MORNING AND EVENING, CLOUDY DURING THE DAY"],
+221:["202.svg","202.svg","300","曇朝の内一時雨","CLOUDY OCCASIONAL SCCATERED SHOWERS IN THE MORNING"],
+222:["212.svg","212.svg","300","曇夕方一時雨","CLOUDY, OCCASIONAL SCCATERED SHOWERS IN THE EVENING"],
+223:["201.svg","601.svg","200","曇日中時々晴","CLOUDY IN THE MORNING AND EVENING, PARTLY CLOUDY DURING THE DAY,"],
+224:["212.svg","212.svg","300","曇昼頃から雨","CLOUDY, RAIN IN THE AFTERNOON"],
+225:["212.svg","212.svg","300","曇夕方から雨","CLOUDY, RAIN IN THE EVENING"],
+226:["212.svg","212.svg","300","曇夜は雨","CLOUDY, RAIN IN THE NIGHT"],
+228:["215.svg","215.svg","400","曇昼頃から雪","CLOUDY, SNOW IN THE AFTERNOON"],
+229:["215.svg","215.svg","400","曇夕方から雪","CLOUDY, SNOW IN THE EVENING"],
+230:["215.svg","215.svg","400","曇夜は雪","CLOUDY, SNOW IN THE NIGHT"],
+231:["200.svg","200.svg","200","曇海上海岸は霧か霧雨","CLOUDY, FOG OR DRIZZLING ON THE SEA AND NEAR SEASHORE"],
+240:["202.svg","202.svg","300","曇時々雨で雷を伴う","CLOUDY, FREQUENT SCCATERED SHOWERS AND THUNDER"],
+250:["204.svg","204.svg","400","曇時々雪で雷を伴う","CLOUDY, FREQUENT SNOW AND THUNDER"],
+260:["204.svg","204.svg","400","曇一時雪か雨","CLOUDY, SNOW FLURRIES OR OCCASIONAL SCATTERED SHOWERS"],
+270:["204.svg","204.svg","400","曇時々雪か雨","CLOUDY, FREQUENT SNOW FLURRIES OR SCATTERED SHOWERS"],
+281:["215.svg","215.svg","400","曇後雪か雨","CLOUDY, SNOW OR RAIN LATER"],
+300:["300.svg","300.svg","300","雨","RAIN"],
+301:["301.svg","701.svg","300","雨時々晴","RAIN, PARTLY CLOUDY"],
+302:["302.svg","302.svg","300","雨時々止む","SHOWERS THROUGHOUT THE DAY"],
+303:["303.svg","303.svg","400","雨時々雪","RAIN,FREQUENT SNOW FLURRIES"],
+304:["300.svg","300.svg","300","雨か雪","RAINORSNOW"],
+306:["300.svg","300.svg","300","大雨","HEAVYRAIN"],
+308:["308.svg","308.svg","300","雨で暴風を伴う","RAINSTORM"],
+309:["303.svg","303.svg","400","雨一時雪","RAIN,OCCASIONAL SNOW"],
+311:["311.svg","711.svg","300","雨後晴","RAIN,CLEAR LATER"],
+313:["313.svg","313.svg","300","雨後曇","RAIN,CLOUDY LATER"],
+314:["314.svg","314.svg","400","雨後時々雪","RAIN, FREQUENT SNOW FLURRIES LATER"],
+315:["314.svg","314.svg","400","雨後雪","RAIN,SNOW LATER"],
+316:["311.svg","711.svg","300","雨か雪後晴","RAIN OR SNOW, CLEAR LATER"],
+317:["313.svg","313.svg","300","雨か雪後曇","RAIN OR SNOW, CLOUDY LATER"],
+320:["311.svg","711.svg","300","朝の内雨後晴","RAIN IN THE MORNING, CLEAR LATER"],
+321:["313.svg","313.svg","300","朝の内雨後曇","RAIN IN THE MORNING, CLOUDY LATER"],
+322:["303.svg","303.svg","400","雨朝晩一時雪","OCCASIONAL SNOW IN THE MORNING AND EVENING, RAIN DURING THE DAY"],
+323:["311.svg","711.svg","300","雨昼頃から晴","RAIN, CLEAR IN THE AFTERNOON"],
+324:["311.svg","711.svg","300","雨夕方から晴","RAIN, CLEAR IN THE EVENING"],
+325:["311.svg","711.svg","300","雨夜は晴","RAIN, CLEAR IN THE NIGHT"],
+326:["314.svg","314.svg","400","雨夕方から雪","RAIN, SNOW IN THE EVENING"],
+327:["314.svg","314.svg","400","雨夜は雪","RAIN,SNOW IN THE NIGHT"],
+328:["300.svg","300.svg","300","雨一時強く降る","RAIN, EXPECT OCCASIONAL HEAVY RAINFALL"],
+329:["300.svg","300.svg","300","雨一時みぞれ","RAIN, OCCASIONAL SLEET"],
+340:["400.svg","400.svg","400","雪か雨","SNOWORRAIN"],
+350:["300.svg","300.svg","300","雨で雷を伴う","RAIN AND THUNDER"],
+361:["411.svg","811.svg","400","雪か雨後晴","SNOW OR RAIN, CLEAR LATER"],
+371:["413.svg","413.svg","400","雪か雨後曇","SNOW OR RAIN, CLOUDY LATER"],
+400:["400.svg","400.svg","400","雪","SNOW"],
+401:["401.svg","801.svg","400","雪時々晴","SNOW, FREQUENT CLEAR"],
+402:["402.svg","402.svg","400","雪時々止む","SNOWTHROUGHOUT THE DAY"],
+403:["403.svg","403.svg","400","雪時々雨","SNOW,FREQUENT SCCATERED SHOWERS"],
+405:["400.svg","400.svg","400","大雪","HEAVYSNOW"],
+406:["406.svg","406.svg","400","風雪強い","SNOWSTORM"],
+407:["406.svg","406.svg","400","暴風雪","HEAVYSNOWSTORM"],
+409:["403.svg","403.svg","400","雪一時雨","SNOW, OCCASIONAL SCCATERED SHOWERS"],
+411:["411.svg","811.svg","400","雪後晴","SNOW,CLEAR LATER"],
+413:["413.svg","413.svg","400","雪後曇","SNOW,CLOUDY LATER"],
+414:["414.svg","414.svg","400","雪後雨","SNOW,RAIN LATER"],
+420:["411.svg","811.svg","400","朝の内雪後晴","SNOW IN THE MORNING, CLEAR LATER"],
+421:["413.svg","413.svg","400","朝の内雪後曇","SNOW IN THE MORNING, CLOUDY LATER"],
+422:["414.svg","414.svg","400","雪昼頃から雨","SNOW, RAIN IN THE AFTERNOON"],
+423:["414.svg","414.svg","400","雪夕方から雨","SNOW, RAIN IN THE EVENING"],
+425:["400.svg","400.svg","400","雪一時強く降る","SNOW, EXPECT OCCASIONAL HEAVY SNOWFALL"],
+426:["400.svg","400.svg","400","雪後みぞれ","SNOW, SLEET LATER"],
+427:["400.svg","400.svg","400","雪一時みぞれ","SNOW, OCCASIONAL SLEET"],
+450:["400.svg","400.svg","400","雪で雷を伴う","SNOW AND THUNDER"]}
+#+end_src
+
+*** 地方予報区代表情報
+
+同じ地方予報区に属する府県予報区の中で、代表となる府県予報区の情報。
+
+#+begin_src js
+Forecast.Const.AREA_FUKEN=[
+//北海道地方
+{center:"016000",offices:["016000","011000","013000","014030","014100","015000","012000","017000"]},
+//東北地方
+{center:"040000",offices:["040000","060000","070000","020000","050000","030000"]},
+//関東甲信越地方
+{center:"130000",offices:["130000","120000","140000","190000","090000","100000","110000","080000","200000"]},
+// 北陸地方
+{center:"150000",offices:["150000","170000","180000","160000"]},
+// 東海地方
+{center:"230000",offices:["230000","240000","220000","210000"]},
+// 近畿地方
+{center:"270000",offices:["270000","300000","260000","250000","280000","290000"]},
+// 中国地方（山口県を除く）
+{center:"340000",offices:["340000","310000","330000","320000"]},
+// 四国地方
+{center:"370000",offices:["370000","380000","360000","390000"]},
+// 九州北部地方（山口県を含む）
+{center:"400000",offices:["400000","440000","410000","430000","420000","350000"]},
+// 九州南部・奄美地方
+{center:"460100",offices:["460100","450000","460040"]},
+// 沖縄地方
+{center:"471000",offices:["471000","473000","474000","472000"]}
+]
+#+end_src
+
+centerはarea.jsonのcentersコードではなくofficesコードである点に注意。地方を代表するoffice(府県予報区)を指す。
+
+週間天気概況は地方を代表する一つの府県予報区(office)のみが発表する。例えば福島県(office=070000)の週間天気概況は東北地方のcenterである宮城県(office=040000)が代表して行う。URLは https://www.jma.go.jp/bosai/forecast/data/overview_week/070000.json (Not Found)ではなく https://www.jma.go.jp/bosai/forecast/data/overview_week/040000.json となる。
+
+同じ情報は https://www.jma.go.jp/bosai/common/const/area.json から求めることはできるが、気象台名(officeName)を元に検索しなければならない。
+
+*** 週間天気予報エリアのローマ字表記
+
+91個(2022-02-21現在)
+
+#+begin_src js
+Forecast.Const.WEEK_AREAS = {
+"011000":"Soya Region",
+"012000":"Kamikawa Rumoi Region",
+...
+473e3:"Miyakojima Region",
+474e3:"Yaeyama Region"}
+#+end_src
+
+https://www.jma.go.jp/bosai/forecast/const/week_area_name.json にもほぼ同じデータがあるので不要(Soya RegionがSoyaになっているなど表記に若干の違いがある)。
+
+* 場所の情報
+** 発表区域
+
+発表区域の情報は次のURLから取得できる。
+
+https://www.jma.go.jp/bosai/common/const/area.json
+
+トップレベルオブジェクトのプロパティ名と発表区域との対応関係は次表の通り。
+
+| プロパティ | 階層                   |
+|------------+------------------------|
+| centers    | 地方予報区(11区)       |
+| offices    | 府県予報区(58区)       |
+| class10s   | 一次細分区域(142区)    |
+| class15s   | 市町村等をまとめた地域 |
+| class20s   | 二次細分区域           |
+
+(参考: [[https://www.jma.go.jp/jma/kishou/know/saibun/index.html][気象庁 | 気象警報・注意報や天気予報の発表区域]])
+
+日本全国を5段階の階層で分割している。各階層の区域を表すオブジェクトにはparentプロパティとchildrenプロパティがあり、上下の階層との関係が示されている。
+
+** アメダス観測所
+
+気温や降水量はアメダス観測所の地点のものが示されている。アメダス観測所は観測所番号で識別される。
+
+(参考: [[https://www.jma.go.jp/jma/kishou/know/amedas/kaisetsu.html][気象庁 | アメダス]])
+
+アメダス観測所の一般的な情報は次のURL等から求められる。
+
+- https://www.jma.go.jp/bosai/amedas/const/amedastable.json
+- https://www.jma.go.jp/bosai/amedas/const/amedas_class20_list.json
+
+** 府県天気予報のアメダス観測所
+
+天気予報は一次細分区域毎に発表されるが、気温や降水量はアメダス観測所の観測所番号を用いて発表される。一次細分区域とアメダス観測所との対応関係は次のURLから取得できる。
+
+https://www.jma.go.jp/bosai/forecast/const/forecast_area.json
+
+** 府県週間天気予報
+
+府県週間天気予報は原則的には府県予報区毎に発表されることになっているが、実際には地域の地形的・季節的状況に合わせて細分化されている(参考: [[https://www.jma.go.jp/jma/kishou/know/kurashi/shukan.html][気象庁｜週間天気予報の解説]])。これは一次細分区域とは異なる。この文書では便宜上週間予報区域と呼んでいる。
+
+府県週間天気予報の予報区に関する情報は次のURLから取得できる。
+
+- https://www.jma.go.jp/bosai/forecast/const/week_area.json
+- https://www.jma.go.jp/bosai/forecast/const/week_area05.json
+- https://www.jma.go.jp/bosai/forecast/const/week_area_name.json
+* 天気予報データの読み解き方
+
+天気予報のデータは =https://www.jma.go.jp/bosai/forecast/data/forecast/<office>.json= から取得できる。 =<office>= は府県予報区のコード。
+
+例えば福島県のデータを取得するには次のようにする([[https://github.com/misohena/el-jma][el-jma]]を使用)。
+
+#+begin_src elisp
+(jma-forecast-get "070000")
+#+end_src
+
+結果は次の通り。
+
+#+begin_src elisp
+;; 発表の配列(おそらく固定長)
+[
+ ;; 一つ目は府県天気予報(毎日5時・11時・17時、他必要に応じて発表)
+ ((publishingOffice . "福島地方気象台")
+  (reportDatetime . "2022-02-21T05:00:00+09:00") ;;朝5時の定期発表
+  (timeSeries
+   . [
+      ;; 天気、風、波(海のある区域のみ)
+      ;; 日単位(2～3日分)。
+      ((timeDefines . ["2022-02-21T05:00:00+09:00" "2022-02-22T00:00:00+09:00"])
+       (areas
+        . [
+           ;; 一次細分区域(class10s)単位
+           ((area (name . "中通り") (code . "070010"))
+            (weatherCodes . ["205" "201"])
+            (weathers . ["くもり　昼過ぎ　まで　時々　雪　で　ふぶく" "くもり　時々　晴れ　所により　雪"])
+            (winds . ["西の風　やや強く" "西の風　日中　北西の風"]))
+
+           ((area (name . "浜通り") (code . "070020"))
+            (weatherCodes . ["101" "101"])
+            (weathers . ["晴れ　時々　くもり　所により　昼前　まで　雪" "晴れ　時々　くもり　所により　昼前　から　雪"])
+            (winds . ["西の風　やや強く　海上　では　西の風　強く" "北西の風　海上　では　はじめ　西の風　強く"])
+            (waves . ["３メートル　後　２．５メートル" "２メートル"]))
+
+           ((area (name . "会津") (code . "070030"))
+            (weatherCodes . ["400" "400"])
+            (weathers . ["雪　で　ふぶく" "雪"])
+            (winds . ["西の風　日中　やや強く" "西の風"]))])
+       )
+      ;; 降水確率
+      ;; 6時間単位(発表時点で過ぎた時刻は含まれない)。
+      ((timeDefines . ["2022-02-21T06:00:00+09:00" "2022-02-21T12:00:00+09:00" "2022-02-21T18:00:00+09:00" "2022-02-22T00:00:00+09:00" "2022-02-22T06:00:00+09:00" "2022-02-22T12:00:00+09:00" "2022-02-22T18:00:00+09:00"])
+       (areas
+        . [
+           ;; 一次細分区域(class10s)単位
+           ((area (name . "中通り") (code . "070010")) (pops . ["30" "40" "20" "20" "20" "30" "30"]))
+           ((area (name . "浜通り") (code . "070020")) (pops . ["20" "10" "10" "10" "20" "20" "20"]))
+           ((area (name . "会津") (code . "070030")) (pops . ["80" "70" "70" "60" "50" "60" "70"]))
+           ])
+       )
+      ;; 最低気温、最高気温
+      ;; 時刻には厳密な意味は無さそう。二つの要素がペアになっていて、最初の要素が最低気温、二つ目の要素が最高気温となる。
+      ;; 発表当日の最低気温は基本的に無効。Webサイトでも必ず「-」となっている。時刻はなぜか9時を指しており、値は最高気温と同じになっている。
+      ;; 5時、11時の発表には当日・翌日の4要素が含まれており、17時発表には翌日の2要素のみ含まれている。その他予定時刻以外の発表については不明。
+      ((timeDefines . ["2022-02-21T09:00:00+09:00" "2022-02-21T00:00:00+09:00" "2022-02-22T00:00:00+09:00" "2022-02-22T09:00:00+09:00"])
+       (areas
+        . [
+           ;; アメダス観測所(amedas)単位
+           ;; 観測所がどの一次細分区域に属するかは https://www.jma.go.jp/bosai/forecast/const/forecast_area.json から求められる。
+           ((area (name . "福島") (code . "36127")) (temps . ["1" "1" "-2" "2"]))
+           ((area (name . "小名浜") (code . "36846")) (temps . ["4" "4" "-3" "6"]))
+           ((area (name . "若松") (code . "36361")) (temps . ["1" "1" "-3" "1"]))
+           ((area (name . "白河") (code . "36667")) (temps . ["1" "1" "-4" "3"]))
+           ((area (name . "郡山") (code . "36476")) (temps . ["0" "0" "-4" "2"]))
+           ((area (name . "相馬") (code . "36151")) (temps . ["2" "2" "-4" "3"]))
+           ((area (name . "田島") (code . "36641")) (temps . ["-4" "-4" "-7" "-2"]))
+           ])
+       )
+      ]))
+
+ ;; 二つ目は府県週間天気予報(毎日11時と17時に発表)
+ ;; 参考: https://www.jma.go.jp/jma/kishou/know/kurashi/shukan.html : 気象庁｜週間天気予報の解説
+ ((publishingOffice . "福島地方気象台")
+  (reportDatetime . "2022-02-20T17:00:00+09:00")
+  (timeSeries
+   . [
+      ((timeDefines . ["2022-02-21T00:00:00+09:00" "2022-02-22T00:00:00+09:00" "2022-02-23T00:00:00+09:00" "2022-02-24T00:00:00+09:00" "2022-02-25T00:00:00+09:00" "2022-02-26T00:00:00+09:00" "2022-02-27T00:00:00+09:00"])
+       (areas
+        . [
+           ;; 週間予報区域単位(原則として府県予報区単位だが、地形や季節によって細分化している)
+           ((area (name . "中通り・浜通り") (code . "070100")) (weatherCodes . ["201" "200" "201" "101" "101" "101" "201"]) (pops . ["" "40" "20" "20" "20" "20" "30"]) (reliabilities . ["" "" "A" "A" "A" "A" "A"]))
+           ((area (name . "会津") (code . "070030")) (weatherCodes . ["400" "402" "205" "204" "200" "200" "206"]) (pops . ["" "80" "70" "50" "40" "30" "60"]) (reliabilities . ["" "" "A" "C" "B" "B" "C"]))
+           ])
+       )
+      ((timeDefines . ["2022-02-21T00:00:00+09:00" "2022-02-22T00:00:00+09:00" "2022-02-23T00:00:00+09:00" "2022-02-24T00:00:00+09:00" "2022-02-25T00:00:00+09:00" "2022-02-26T00:00:00+09:00" "2022-02-27T00:00:00+09:00"])
+       (areas
+        . [
+           ;; アメダス観測所(amedas)単位
+           ;; 観測所がどの週間予報区域に属するかは https://www.jma.go.jp/bosai/forecast/const/week_area.json から求められる。
+           ((area (name . "福島") (code . "36127"))
+            (tempsMin . ["" "-2" "-3" "-2" "2" "1" "2"])
+            (tempsMinUpper . ["" "-1" "-2" "0" "3" "3" "3"])
+            (tempsMinLower . ["" "-5" "-5" "-4" "0" "-4" "-3"])
+            (tempsMax . ["" "3" "2" "6" "9" "13" "11"])
+            (tempsMaxUpper . ["" "5" "4" "8" "12" "15" "15"])
+            (tempsMaxLower . ["" "1" "0" "3" "7" "10" "9"]))
+
+           ((area (name . "若松") (code . "36361"))
+            (tempsMin . ["" "-3" "-4" "-3" "-1" "-3" "-2"])
+            (tempsMinUpper . ["" "-2" "-3" "-2" "1" "-1" "1"])
+            (tempsMinLower . ["" "-9" "-6" "-5" "-6" "-9" "-7"])
+            (tempsMax . ["" "1" "0" "2" "6" "9" "8"])
+            (tempsMaxUpper . ["" "3" "2" "4" "8" "12" "11"])
+            (tempsMaxLower . ["" "-2" "-3" "-1" "4" "7" "6"]))
+           ])
+       )
+      ])
+  ;; 気温の平年値
+  (tempAverage (areas . [((area (name . "福島") (code . "36127")) (min . "-0.7") (max . "8.1")) ((area (name . "若松") (code . "36361")) (min . "-2.8") (max . "5.2"))]))
+  ;; 降水量の平年値
+  (precipAverage (areas . [((area (name . "福島") (code . "36127")) (min . "3.4") (max . "14.0")) ((area (name . "若松") (code . "36361")) (min . "9.5") (max . "21.1"))]))
+  )
+ ]
+#+end_src
+
+これが実際にWebサイト上でどのように表示されるかは https://www.jma.go.jp/bosai/forecast/#area_type=offices&area_code=070000 から確認できる。
+
+情報は複数の地点の情報を寄せ集めた状態で提供されているので、特定の地点の天気予報を求めるには次のエリアコードをあらかじめ決めておく必要がある。
+
+- 府県予報区コード : どの府県予報区の天気予報をダウンロードするか
+- 一次細分区域コード : どの一次細分区域の天気予報(明後日までの詳細)を取り出すか
+- アメダス観測所番号 : どのアメダス観測所の最低気温・最高気温を取り出すか
+- 週間予報区域コード : どの週間予報区域の週間天気予報(翌日から7日間)を取り出すか
+- アメダス観測所番号(週間予報用) : どのアメダス観測所の週間の最低気温・最高気温を取り出すか
