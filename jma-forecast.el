@@ -129,6 +129,7 @@
 
 (require 'jma-utils)
 (require 'jma-weather-code)
+(require 'parse-time)
 
 ;;;; 天気予報
 
@@ -472,7 +473,7 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
                        amedas-code
                        week-area-code
                        week-amedas-code)))
-    (when (interactive-p)
+    (when (called-interactively-p 'interactive)
       (message "%s" (prin1-to-string result)))
     result))
 
