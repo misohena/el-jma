@@ -20,9 +20,9 @@
 |-----------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | https://www.jma.go.jp/bosai/forecast/const/anniversary.json                 | 祝日の日付                                                                                                                                                                                                                                                                                                                                            |
 |-----------------------------------------------------------------------------+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| https://www.jma.go.jp/bosai/common/const/class20relm.json                   |                                                                                                                                                                                                                                                                                                                                                       |
-| https://www.jma.go.jp/bosai/amedas/const/amedastable.json                   |                                                                                                                                                                                                                                                                                                                                                       |
-| https://www.jma.go.jp/bosai/amedas/const/amedas_class20_list.json           |                                                                                                                                                                                                                                                                                                                                                       |
+| https://www.jma.go.jp/bosai/common/const/class20relm.json                   | 二次細分区域の緯度経度範囲                                                                                                                                                                                                                                                                                                                            |
+| https://www.jma.go.jp/bosai/amedas/const/amedastable.json                   | アメダス観測所リスト                                                                                                                                                                                                                                                                                                                                  |
+| https://www.jma.go.jp/bosai/amedas/const/amedas_class20_list.json           | 二次細分区域とアメダス観測所の対応リスト                                                                                                                                                                                                                                                                                                              |
 
 *** 画像
 | URL                                                          | 中身       |
@@ -264,6 +264,11 @@ https://www.jma.go.jp/bosai/forecast/const/forecast_area.json
 - https://www.jma.go.jp/bosai/forecast/const/week_area.json
 - https://www.jma.go.jp/bosai/forecast/const/week_area05.json
 - https://www.jma.go.jp/bosai/forecast/const/week_area_name.json
+
+** 詳細説明
+
+より詳しい説明は[[file:how-to-get-jma-area-info.org][気象庁データにおける場所に関する情報の扱い方]]を参照のこと。
+
 * 天気予報データの読み解き方
 
 天気予報のデータは =https://www.jma.go.jp/bosai/forecast/data/forecast/<office>.json= から取得できる。 =<office>= は府県予報区のコード。
