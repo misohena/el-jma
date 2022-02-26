@@ -26,6 +26,7 @@
 
 (require 'cl-lib)
 (require 'calendar)
+(require 'parse-time)
 
 ;;;; Customize
 

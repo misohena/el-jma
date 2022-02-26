@@ -131,6 +131,7 @@
 (require 'jma-utils)
 (require 'jma-area)
 (require 'jma-weather-code)
+(require 'jma-amedas)
 
 ;;;; 天気予報
 
@@ -405,14 +406,12 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
 (defvar jma-forecast-cache-week-area nil)
 (defvar jma-forecast-cache-week-area05 nil)
 (defvar jma-forecast-cache-week-area-name nil)
-(defvar jma-forecast-cache-amedas-table nil)
 
 (defconst jma-forecast-cache-data-alist
   '((jma-forecast-cache-forecast-area . "https://www.jma.go.jp/bosai/forecast/const/forecast_area.json")
     (jma-forecast-cache-week-area . "https://www.jma.go.jp/bosai/forecast/const/week_area.json")
     (jma-forecast-cache-week-area05 . "https://www.jma.go.jp/bosai/forecast/const/week_area05.json")
-    (jma-forecast-cache-week-area-name . "https://www.jma.go.jp/bosai/forecast/const/week_area_name.json")
-    (jma-forecast-cache-amedas-table . "https://www.jma.go.jp/bosai/amedas/const/amedastable.json")))
+    (jma-forecast-cache-week-area-name . "https://www.jma.go.jp/bosai/forecast/const/week_area_name.json")))
 
 (defun jma-forecast-cache-data-get (var)
   (or (symbol-value var)
@@ -462,26 +461,7 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
    (jma-forecast-cache-data-get
     'jma-forecast-cache-week-area)))
 
-;; アメダス情報取得
-
-(defun jma-forecast-area-amedas-name (amedas-sym)
-  (alist-get 'kjName
-             (alist-get amedas-sym
-                        (jma-forecast-cache-data-get
-                         'jma-forecast-cache-amedas-table))))
-
 ;; ユーザー入力
-
-(defun jma-forecast-area-read-amedas (amedas-codes)
-  "複数のアメダス観測所コードから一つを選びます。"
-  (jma-choose-from-alist
-   "アメダス観測所: "
-   (mapcar
-    (lambda (amedas-code)
-      (cons
-       (jma-forecast-area-amedas-name (intern amedas-code))
-       amedas-code))
-    amedas-codes)))
 
 (defun jma-forecast-area-read ()
   "天気予報取得用のエリアコードをミニバッファから読み取ります。"
@@ -491,7 +471,7 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
          ;; 一次細分区域を選択
          (class10-code (jma-area-read-class10 office-code))
          ;; アメダス観測所を選択
-         (amedas-code (jma-forecast-area-read-amedas
+         (amedas-code (jma-amedas-read-amedas-code
                        (jma-forecast-area-amedas-codes-from-class10-code
                         class10-code))))
     (jma-forecast-area-read--common
@@ -512,7 +492,7 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
          (class10-code (jma-area-parent-code (jma-area-class15 class15-code)))
          ;; アメダス観測所を選択
          ;;@todo 入力なしに一つに絞り込みたい。緯度経度で二次細分区域から一番近い観測所を求めるくらいしか方法が見当たらない。ユーザーに委ねる方がマシ？
-         (amedas-code (jma-forecast-area-read-amedas
+         (amedas-code (jma-amedas-read-amedas-code
                        (jma-forecast-area-amedas-codes-from-class10-code
                         class10-code))))
     (jma-forecast-area-read--common
