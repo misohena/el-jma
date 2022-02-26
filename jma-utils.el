@@ -223,5 +223,19 @@ TEMPLATEが文字列の場合、文字列中の展開指定を展開後文字列
       (setq result (concat result (substring template pos)))
       result))))
 
+;;;; ユーザー入力
+
+(defun jma-choose-from-alist (prompt alist)
+  (cdr (assoc (completing-read prompt alist nil t) alist)))
+
+;;;; シンボル
+
+(defun jma-ensure-symbol (obj)
+  (cond
+   ((stringp obj) (intern obj))
+   ((symbolp obj) obj)
+   ((integerp obj) (format "%s" obj))
+   (t (error "Not symbol or string"))))
+
 (provide 'jma-utils)
 ;;; jma-utils.el ends here

@@ -127,9 +127,10 @@
 
 ;;; Code:
 
-(require 'jma-utils)
-(require 'jma-weather-code)
 (require 'parse-time)
+(require 'jma-utils)
+(require 'jma-area)
+(require 'jma-weather-code)
 
 ;;;; 天気予報
 
@@ -379,103 +380,157 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
 
 ;;;;; 天気予報エリア選択
 
-(defun jma-choose-from-alist (prompt alist) ;;@todo jma-utils.elへ移動する。
-  (cdr (assoc (completing-read prompt alist nil t) alist)))
+;; キャッシュ
 
-(defvar jma-forecast-cache-area nil)
 (defvar jma-forecast-cache-forecast-area nil)
 (defvar jma-forecast-cache-week-area nil)
-(defvar jma-forecast-cache-week-area-name nil)
 (defvar jma-forecast-cache-week-area05 nil)
+(defvar jma-forecast-cache-week-area-name nil)
 (defvar jma-forecast-cache-amedas-table nil)
 
-(defun jma-forecast-cache-area-data ()
-  (let ((data-list
-         '((jma-forecast-cache-area . "https://www.jma.go.jp/bosai/common/const/area.json")
-           (jma-forecast-cache-forecast-area . "https://www.jma.go.jp/bosai/forecast/const/forecast_area.json")
-           (jma-forecast-cache-week-area . "https://www.jma.go.jp/bosai/forecast/const/week_area.json")
-           (jma-forecast-cache-week-area-name . "https://www.jma.go.jp/bosai/forecast/const/week_area_name.json")
-           (jma-forecast-cache-week-area05 . "https://www.jma.go.jp/bosai/forecast/const/week_area05.json")
-           (jma-forecast-cache-amedas-table . "https://www.jma.go.jp/bosai/amedas/const/amedastable.json"))))
-    (dolist (data data-list)
-      (let ((var (car data))
-            (url (cdr data)))
-        (unless (symbol-value var)
-          (set var (jma-json-get url)))))))
+(defconst jma-forecast-cache-data-alist
+  '((jma-forecast-cache-forecast-area . "https://www.jma.go.jp/bosai/forecast/const/forecast_area.json")
+    (jma-forecast-cache-week-area . "https://www.jma.go.jp/bosai/forecast/const/week_area.json")
+    (jma-forecast-cache-week-area05 . "https://www.jma.go.jp/bosai/forecast/const/week_area05.json")
+    (jma-forecast-cache-week-area-name . "https://www.jma.go.jp/bosai/forecast/const/week_area_name.json")
+    (jma-forecast-cache-amedas-table . "https://www.jma.go.jp/bosai/amedas/const/amedastable.json")))
 
-(defun jma-forecast-area-office-name (office-sym)
-  (cdar (alist-get office-sym (alist-get 'offices jma-forecast-cache-area))))
+(defun jma-forecast-cache-data-get (var)
+  (or (symbol-value var)
+      (when-let ((url (alist-get var jma-forecast-cache-data-alist)))
+        (set var (jma-json-get url)))))
 
-(defun jma-forecast-area-class10-name (class10-sym)
-  (cdar (alist-get class10-sym (alist-get 'class10s jma-forecast-cache-area))))
+(defun jma-forecast-cache-data-load-all ()
+  (dolist (data jma-forecast-cache-data-alist)
+    (let ((var (car data))
+          (url (cdr data)))
+      (unless (symbol-value var)
+        (set var (jma-json-get url))))))
+
+;; コード変換
+
+(defun jma-forecast-area-amedas-codes-from-class10-code (class10-code)
+  "一次細分区域コードから(詳細)天気予報で使うアメダス観測所コードリストを求めます。"
+  (mapcar ;;vectorからlistへ変換
+   #'identity
+   (seq-some
+    (lambda (odata)
+      (seq-some
+       (lambda (c10data)
+         (and (equal (alist-get 'class10 c10data) class10-code)
+              (alist-get 'amedas c10data)))
+       (cdr odata)))
+    (jma-forecast-cache-data-get
+     'jma-forecast-cache-forecast-area))))
+
+(defun jma-forecast-area-week-area-codes-from-class10-code (class10-code)
+  "一次細分区域コードから週間予報区域コード(可能性のある全コード)リストを求めます。"
+  (mapcar ;;vectorからlistへ変換
+   #'identity
+   (alist-get (jma-ensure-symbol class10-code)
+              (jma-forecast-cache-data-get
+               'jma-forecast-cache-week-area05))))
+
+(defun jma-forecast-area-amedas-code-from-week-area-code (week-area-code)
+  "週間予報区域コードから週間天気予報で使うアメダス観測所コードを求めます。"
+  (seq-some
+   (lambda (odata)
+     (seq-some
+      (lambda (wdata)
+        (and (equal (alist-get 'week wdata) week-area-code)
+             (alist-get 'amedas wdata)))
+      (cdr odata)))
+   (jma-forecast-cache-data-get
+    'jma-forecast-cache-week-area)))
+
+;; アメダス情報取得
 
 (defun jma-forecast-area-amedas-name (amedas-sym)
-  (alist-get 'kjName (alist-get amedas-sym jma-forecast-cache-amedas-table)))
+  (alist-get 'kjName
+             (alist-get amedas-sym
+                        (jma-forecast-cache-data-get
+                         'jma-forecast-cache-amedas-table))))
 
-;; jma-forecast-cache-forecast-area
+;; ユーザー入力
+
+(defun jma-forecast-area-read-amedas (amedas-codes)
+  "複数のアメダス観測所コードから一つを選びます。"
+  (jma-choose-from-alist
+   "アメダス観測所: "
+   (mapcar
+    (lambda (amedas-code)
+      (cons
+       (jma-forecast-area-amedas-name (intern amedas-code))
+       amedas-code))
+    amedas-codes)))
 
 (defun jma-forecast-area-read ()
+  "天気予報取得用のエリアコードをミニバッファから読み取ります。"
   (interactive)
-  (jma-forecast-cache-area-data) ;; 必要なデータをダウンロード(キャッシュ)
-
   (let* (;; 府県予報区を選択
-         (offices jma-forecast-cache-forecast-area)
-         (office
-          (jma-choose-from-alist
-           "府県予報区: "
-           (mapcar (lambda (office)
-                     (cons
-                      (jma-forecast-area-office-name (car office))
-                      office))
-                   offices)))
-         (office-sym (car office))
-         (office-code (symbol-name office-sym))
+         (office-code (jma-area-read-office))
          ;; 一次細分区域を選択
-         (class10
-          (jma-choose-from-alist
-           "一次細分区域: "
-           (mapcar (lambda (class10)
-                     (cons
-                      (jma-forecast-area-class10-name
-                       (intern (alist-get 'class10 class10)))
-                      class10))
-                   (cdr office))))
-         (class10-code (alist-get 'class10 class10))
+         (class10-code (jma-area-read-class10 office-code))
          ;; アメダス観測所を選択
-         (amedas-code
-          (jma-choose-from-alist
-           "アメダス観測所: "
-           (mapcar (lambda (amedas)
-                     (cons
-                      (jma-forecast-area-amedas-name (intern amedas))
-                      amedas))
-                   (alist-get 'amedas class10))))
-         ;; 現在の週間予報区域を取得(季節によって異なる可能性あり。長野等)
-         (forecast (jma-forecast-get office-code))
-         (week-report (jma-forecast-week-report forecast))
-         (week-ts0 (jma-forecast-report-time-series-at week-report 0))
-         (week-areas-in-forecast (alist-get 'areas week-ts0))
-         ;; 週間予報区域を選択
-         (week-area-code
-          (jma-choose-from-alist
-           "週間予報区域: "
-           (mapcar (lambda (week-area)
-                     (cons
-                      (alist-get 'name (alist-get 'area week-area))
-                      (alist-get 'code (alist-get 'area week-area))))
-                   week-areas-in-forecast)))
-         ;; 週間予報区域用のアメダス観測所を割り出す。
-         (week-areas (alist-get office-sym jma-forecast-cache-week-area))
-         (week-area (seq-find (lambda (area) (equal (alist-get 'week area) week-area-code)) week-areas))
-         (week-amedas-code (alist-get 'amedas week-area))
-         (result (list office-code
-                       class10-code
-                       amedas-code
-                       week-area-code
-                       week-amedas-code)))
-    (when (called-interactively-p 'interactive)
-      (message "%s" (prin1-to-string result)))
+         (amedas-code (jma-forecast-area-read-amedas
+                       (jma-forecast-area-amedas-codes-from-class10-code
+                        class10-code))))
+    (jma-forecast-area-read--common
+     office-code class10-code amedas-code
+     (called-interactively-p 'interactive))))
+
+;; 市区町村から読み取る方法
+
+(defun jma-forecast-area-read-class20 ()
+  "ミニバッファから二次細分区域(概ね市区町村)を読み取り、天気予報
+の取得に必要なエリアコードを返します。"
+  (interactive)
+  (let* (;; 府県予報区を選択
+         (office-code (jma-area-read-office))
+         ;; 二次細分区域を選択し、一次細分区域を割り出す
+         (class20-code (jma-area-read-class20-in-office office-code))
+         (class15-code (jma-area-parent-code (jma-area-class20 class20-code)))
+         (class10-code (jma-area-parent-code (jma-area-class15 class15-code)))
+         ;; アメダス観測所を選択
+         ;;@todo 入力なしに一つに絞り込みたい。緯度経度で二次細分区域から一番近い観測所を求めるくらいしか方法が見当たらない。ユーザーに委ねる方がマシ？
+         (amedas-code (jma-forecast-area-read-amedas
+                       (jma-forecast-area-amedas-codes-from-class10-code
+                        class10-code))))
+    (jma-forecast-area-read--common
+     office-code class10-code amedas-code
+     (called-interactively-p 'interactive))))
+;;(jma-forecast-area-read-class20)
+
+(defun jma-forecast-area-read--common (office-code
+                                       class10-code
+                                       amedas-code
+                                       interactive-p)
+  (let* (;; 週間予報区域を割り出す
+         (week-area-codes
+          (jma-forecast-area-week-area-codes-from-class10-code class10-code))
+         ;; 週間予報用のアメダス観測所を割り出す
+         (week-amedas-codes
+          (delq
+           nil
+           (mapcar
+            #'jma-forecast-area-amedas-code-from-week-area-code
+            week-area-codes)))
+         ;; 結果のリストを作る
+         (result
+          (list
+           office-code
+           class10-code
+           amedas-code
+           (if (cdr week-area-codes)
+               week-area-codes (car week-area-codes))
+           (if (cdr week-amedas-codes)
+               week-amedas-codes (car week-amedas-codes)))))
+    (when interactive-p
+      (let ((str (substring (prin1-to-string result) 1 -1)))
+        (kill-new str)
+        (message "Copy %s" str)))
     result))
+
 
 ;;;;; お手軽表示
 
@@ -562,10 +617,7 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
 `jma-forecast-location-week-area'
 `jma-forecast-location-week-amedas'
 
-注意: 季節的な要因によってエリアコードは変わる可能性があります。
-そのような地域を指定する場合は、手動で設定を調整する必要がありま
-す。これらの変数にリストを指定することで、複数のエリアコードの中
-から最初に有効なものを使わせることができます。"
+"
   (interactive
    (jma-forecast-area-read))
   (customize-set-variable 'jma-forecast-location-office office-code)
