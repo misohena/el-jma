@@ -324,15 +324,34 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
                    (weather-code (jma-time-series-area-value-at area 'weatherCodes time-index))
                    (p-o-p (jma-time-series-area-value-at area 'pops time-index))
                    (reliability (jma-time-series-area-value-at area 'reliabilities time-index)))
-          (append
-           (list
-            (cons 'report-type "week")
-            (cons 'week-area (alist-get 'area area))
-            (cons 'weather (jma-weather-code-text-ja weather-code))
-            (cons 'weather-code weather-code)
-            (cons 'pop p-o-p)
-            (cons 'reliability reliability))
-           (jma-forecast-temps-for-date-from-week-report week-report amedas-code date)))))))
+
+          (let ((selected-amedas-code
+                 ;; week-area-codeとamedas-codeがリスト表現の時、
+                 ;; 実際に選択されたweek-areaと対応するamedas-codeを使わなければならない。
+                 ;; 例えば(津軽の例)
+                 ;; week-area-codeが("020000" "020010" "020100")で
+                 ;; amedas-codeが(nil "31312" "31312")のとき、
+                 ;; weekで"020010"を選択したら
+                 ;; amedasは"31312"でなければならない。
+                 (if (and (sequencep week-area-code) (sequencep amedas-code))
+                     (let* ((selected-week-area-code (alist-get 'code (alist-get 'area area)))
+                            (index (seq-position week-area-code selected-week-area-code)))
+                       (if (and index (< index (length amedas-code)))
+                           (elt amedas-code index)
+                         amedas-code))
+                   amedas-code)))
+            (append
+             (list
+              (cons 'report-type "week")
+              (cons 'week-area (alist-get 'area area))
+              (cons 'weather (jma-weather-code-text-ja weather-code))
+              (cons 'weather-code weather-code)
+              (cons 'pop p-o-p)
+              (cons 'reliability reliability))
+             (jma-forecast-temps-for-date-from-week-report
+              week-report
+              selected-amedas-code
+              date))))))))
 
 (defun jma-forecast-temps-for-date-from-week-report (week-report amedas-code date)
   (let* ((time-series-1 (jma-forecast-report-time-series-at week-report 1))
@@ -510,11 +529,9 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
           (jma-forecast-area-week-area-codes-from-class10-code class10-code))
          ;; 週間予報用のアメダス観測所を割り出す
          (week-amedas-codes
-          (delq
-           nil
-           (mapcar
-            #'jma-forecast-area-amedas-code-from-week-area-code
-            week-area-codes)))
+          (mapcar
+           #'jma-forecast-area-amedas-code-from-week-area-code
+           week-area-codes))
          ;; 結果のリストを作る
          (result
           (list
@@ -561,7 +578,7 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
   "アメダス観測所(週間)"
   :group 'jma
   :type '(choice (string :tag "番号")
-                 (repeat :tag "優先順リスト" (string :tag "番号"))))
+                 (repeat :tag "週間予報区域と対応するリスト" (string :tag "番号"))))
 
 (defcustom jma-forecast-date-format "%m/%d(%a)"
   "日付の形式"
