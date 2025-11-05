@@ -24,6 +24,47 @@
 
 ;;; Code:
 
+;;;; 設定
+
+(defcustom jma-weather-code-image-dir
+  (locate-user-emacs-file ".jma-weather-cache")
+  "天気アイコン画像の置き場所"
+  :type 'directory
+  :group 'jma)
+
+(defcustom jma-weather-code-image-default-height nil
+  "デフォルトの画像の高さ
+
+nilのとき (default-font-height) を使います。"
+  :type '(choice (const nil) integer)
+  :group 'jma)
+
+(defcustom jma-use-images 'auto
+  "画像を使用するかどうか
+
+値は次のいずれかです。
+  nil =  使用しない
+  t = 使用する
+  auto = 自動的に判別する(SVG画像が表示できる環境またはbatchモード時)"
+  :type '(choice (const auto) (const t) (const nil))
+  :group 'jma)
+
+(defun jma-use-images-p ()
+  "画像を使用するなら非nilを返します。
+
+どんな時に画像を使用するかは`jma-use-images'でカスタマイズ可能です。"
+  (pcase jma-use-images
+    ('nil nil)
+    ('t t)
+    ('auto
+     (or
+      noninteractive
+      (and
+       (display-graphic-p)
+       (fboundp 'image-type-available-p)
+       (image-type-available-p 'svg))))
+    (_ nil)))
+
 ;;;; 天気コード
 
 (defconst jma-weather-code-list
@@ -177,8 +218,6 @@
 
 ;;;;; 画像
 
-(defvar jma-weather-code-image-dir (locate-user-emacs-file ".jma-weather-cache"))
-
 (defun jma-weather-code-image-delete-all ()
   (interactive)
   (when jma-weather-code-image-dir
@@ -219,20 +258,20 @@
    (jma-weather-code-image code night-p)
    jma-weather-code-image-dir))
 
-(defvar jma-weather-code-image-default-height nil
-  "デフォルトの画像の高さ。nilのとき (default-font-height) を使う")
-
 (defun jma-weather-code-image-create (code &optional night-p image-height)
   "指定された天気コードに対応するImage Descriptorを返します。
 
 テキスト端末の場合やSVGをサポートしていない場合はnilを返します。"
-  (when (jma-support-svg-p)
+  (when (jma-use-images-p)
     (jma-weather-code-image-download code night-p)
     (create-image (jma-weather-code-image-file-path code night-p)
                   'svg nil
                   :height (or image-height
                               jma-weather-code-image-default-height
-                              (default-font-height))
+                              ;; バッチモード時(default-font-height)は1になる
+                              (if noninteractive
+                                  16
+                                (default-font-height)))
                   :scale 1
                   :ascent 'center)))
 ;;Usage: (insert-image (jma-weather-code-image-create 300 nil))
@@ -241,19 +280,11 @@
   "指定された天気コードに対応する画像を表示する文字列を返します。
 
 テキスト端末の場合やSVGをサポートしていない場合はnilを返します。"
-  (when (jma-support-svg-p)
+  (when (jma-use-images-p)
     (propertize "_"
                 'display
                 (jma-weather-code-image-create code night-p image-height))))
 ;;Usage: (insert (jma-weather-code-image-string 100 nil))
-
-(defun jma-support-svg-p ()
-  (and
-   (display-graphic-p)
-   (fboundp 'image-type-available-p)
-   (image-type-available-p 'svg)))
-
-
 
 (provide 'jma-weather-code)
 ;;; jma-weather-code.el ends here
