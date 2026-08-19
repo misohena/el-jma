@@ -272,11 +272,11 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
       (let ((time-index (car range)))
         ;; 注意: 明後日の天気は詳細予報に含まれるが、降水確率や気温の情報は無い。
         ;; 全情報無ければnilを返して週間予報を使うようにする。
-        (when-let ((area (jma-time-series-area time-series-0 class10-code))
-                   (weather (jma-time-series-area-value-at area 'weathers time-index))
-                   (weather-code (jma-time-series-area-value-at area 'weatherCodes time-index))
-                   (wind (jma-time-series-area-value-at area 'winds time-index))
-                   (pops (jma-forecast-pops-for-date-from-detailed-report detailed-report class10-code date)))
+        (when-let* ((area (jma-time-series-area time-series-0 class10-code))
+                    (weather (jma-time-series-area-value-at area 'weathers time-index))
+                    (weather-code (jma-time-series-area-value-at area 'weatherCodes time-index))
+                    (wind (jma-time-series-area-value-at area 'winds time-index))
+                    (pops (jma-forecast-pops-for-date-from-detailed-report detailed-report class10-code date)))
           (let (;; 波は海に面していない区域では含まれない。
                 (wave (jma-time-series-area-value-at area 'waves time-index)))
             (append
@@ -296,7 +296,7 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
          (range (jma-time-series-range-in-date time-series-1 date)))
 
     (when (jma-not-empty-range-p range)
-      (when-let ((area (jma-time-series-area time-series-1 class10-code)))
+      (when-let* ((area (jma-time-series-area time-series-1 class10-code)))
         (cl-loop for time-index from (car range) to (1- (cdr range))
                  collect (jma-time-series-area-value-at area 'pops time-index))))))
 
@@ -305,9 +305,9 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
          (range (jma-time-series-range-in-date time-series-2 date)))
     (when (jma-not-empty-range-p range)
       (let ((time-index (car range)))
-        (when-let ((area (jma-time-series-area time-series-2 amedas-code))
-                   (tempMin (jma-time-series-area-value-at area 'temps time-index))
-                   (tempMax (jma-time-series-area-value-at area 'temps (1+ time-index))))
+        (when-let* ((area (jma-time-series-area time-series-2 amedas-code))
+                    (tempMin (jma-time-series-area-value-at area 'temps time-index))
+                    (tempMax (jma-time-series-area-value-at area 'temps (1+ time-index))))
           (list
            (cons 'amedas-point (alist-get 'area area))
            (cons 'temp-min tempMin)
@@ -321,10 +321,10 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
          (range (jma-time-series-range-in-date time-series-0 date)))
     (when (jma-not-empty-range-p range)
       (let ((time-index (car range)))
-        (when-let ((area (jma-time-series-area time-series-0 week-area-code))
-                   (weather-code (jma-time-series-area-value-at area 'weatherCodes time-index))
-                   (p-o-p (jma-time-series-area-value-at area 'pops time-index))
-                   (reliability (jma-time-series-area-value-at area 'reliabilities time-index)))
+        (when-let* ((area (jma-time-series-area time-series-0 week-area-code))
+                    (weather-code (jma-time-series-area-value-at area 'weatherCodes time-index))
+                    (p-o-p (jma-time-series-area-value-at area 'pops time-index))
+                    (reliability (jma-time-series-area-value-at area 'reliabilities time-index)))
 
           (let ((selected-amedas-code
                  ;; week-area-codeとamedas-codeがリスト表現の時、
@@ -359,7 +359,7 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
          (range (jma-time-series-range-in-date time-series-1 date)))
     (when (jma-not-empty-range-p range)
       (let ((time-index (car range)))
-        (when-let ((area (jma-time-series-area time-series-1 amedas-code)))
+        (when-let* ((area (jma-time-series-area time-series-1 amedas-code)))
           (list
            (cons 'amedas-point (alist-get 'area area))
            (cons 'temp-min (jma-time-series-area-value-at area 'tempsMin time-index))
@@ -384,7 +384,7 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
   '((weather-image . jma-weather-to-weather-image))) ;;{{{weather-image}}}を指定可能にする
 
 (defun jma-weather-to-weather-image (weather)
-  (when-let ((code (alist-get 'weather-code weather)))
+  (when-let* ((code (alist-get 'weather-code weather)))
     (jma-weather-code-image-string code)))
 
 (defun jma-weather-to-string (weather &optional template)
@@ -415,7 +415,7 @@ WEEK-AMEDAS-CODE 週間予報における気温を取得するためのAMEDAS観
 
 (defun jma-forecast-cache-data-get (var)
   (or (symbol-value var)
-      (when-let ((url (alist-get var jma-forecast-cache-data-alist)))
+      (when-let* ((url (alist-get var jma-forecast-cache-data-alist)))
         (set var (jma-json-get url)))))
 
 (defun jma-forecast-cache-data-load-all ()
